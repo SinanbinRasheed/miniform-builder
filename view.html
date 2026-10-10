@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fill Out Form</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; transition: background 0.3s, color 0.3s; box-sizing: border-box; }
+        
+        body.light { background: #f0f4f9; color: #3c4043; }
+        body.light .container { background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+        body.light .header-banner { background: #673ab7; color: white; }
+        body.light .question-block { background: #f8f9fa; border: 1px solid #e0e0e0; border-left: 4px solid #673ab7; }
+        body.light input[type="text"] { background: white; color: #333; border: 1px solid #dadce0; }
+        body.light .radio-label { color: #444; }
+
+        body.dark { background: #121212; color: #e0e0e0; }
+        body.dark .container { background: #1e1e1e; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        body.dark .header-banner { background: #bb86fc; color: #121212; }
+        body.dark .question-block { background: #2d2d2d; border: 1px solid #444; border-left: 4px solid #bb86fc; }
+        body.dark .question-title { color: #e0e0e0; }
+        body.dark input[type="text"] { background: #333; color: #fff; border: 1px solid #555; }
+        body.dark .radio-label { color: #ccc; }
+        body.dark button { background: #bb86fc !important; color: #121212 !important; }
+        body.dark button:hover { background: #9a67ea !important; }
+        body.dark .btn-secondary { background: #333 !important; color: #e0e0e0 !important; border: 1px solid #555; }
+
+        .container { width: 100%; max-width: 680px; border-radius: 12px; margin: auto; overflow: hidden; box-sizing: border-box; }
+        .header-banner { padding: 20px; font-size: 22px; font-weight: 600; word-break: break-word; }
+        .form-content { padding: 20px; }
+        .question-block { padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .question-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; word-break: break-word; }
+        .required-star { color: #d93025; margin-left: 4px; }
+        input[type="text"] { width: 100%; padding: 12px; margin-top: 5px; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        .radio-label { display: block; margin: 10px 0; cursor: pointer; font-size: 14px; word-break: break-word; }
+        .actions-bar { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        button { background: #673ab7; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 600; }
+        button:hover { background: #5e35b1; }
+        .btn-secondary { background: #f1f3f4; color: #3c4043; border: 1px solid #dadce0; }
+        #successMsg { display: none; color: #4caf50; font-weight: bold; margin-top: 20px; font-size: 18px; text-align: center; }
+    </style>
+</head>
+<body class="light">
+
+    <div class="container">
+        <div class="header-banner" id="formTitle">Loading Form...</div>
+        
+        <div class="form-content">
+            <form id="dynamicForm">
+                <div id="questionsList"></div>
+                <div class="actions-bar" id="formActions" style="display: none;">
+                    <button type="submit">Submit Response</button>
+                    <button type="button" class="btn-secondary" id="clearBtn">Clear Form</button>
+                </div>
+            </form>
+            <div id="successMsg">🎉 Thank you! Your response has been recorded.</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD4WiwHAyrrVohen4Od4me_SYdLP5OknVc",
+            authDomain: "miniformbuilder.firebaseapp.com",
+            projectId: "miniformbuilder",
+            storageBucket: "miniformbuilder.firebasestorage.app",
+            messagingSenderId: "630669095829",
+            appId: "1:630669095829:web:be032bbef4fef816a27c9c"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const formId = urlParams.get("id");
+
+        const formTitleEl = document.getElementById("formTitle");
+        const questionsListEl = document.getElementById("questionsList");
+        const formActionsEl = document.getElementById("formActions");
+        const successMsgEl = document.getElementById("successMsg");
+        const dynamicForm = document.getElementById("dynamicForm");
+
+        let currentFormQuestions = [];
+
+        async function loadForm() {
+            if (!formId) {
+                formTitleEl.innerText = "Invalid Form Link";
+                return;
+            }
+
+            try {
+                const docRef = doc(db, "forms", formId);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const formData = docSnap.data();
+                    formTitleEl.innerText = formData.title;
+                    document.body.className = formData.theme === "dark" ? "dark" : "light";
+                    currentFormQuestions = formData.questions || [];
+
+                    let html = "";
+                    currentFormQuestions.forEach((q, index) => {
+                        const requiredStar = q.required ? '<span class="required-star">*</span>' : '';
+                        html += `<div class="question-block">` +
+                            `<div class="question-title">${index + 1}. ${q.text} ${requiredStar}</div>`;
+
+                        if (q.type === "text") {
+                            html += `<input type="text" data-qid="${q.id}" class="answer-input" placeholder="Your answer" ${q.required ? 'required' : ''}>`;
+                        } else if (q.type === "radio") {
+                            q.options.forEach(opt => {
+                                html += `<label class="radio-label">` +
+                                    `<input type="radio" name="question_${q.id}" value="${opt}" ${q.required ? 'required' : ''}> ${opt}` +
+                                `</label>`;
+                            });
+                        }
+                        html += `</div>`;
+                    });
+
+                    questionsListEl.innerHTML = html;
+                    formActionsEl.style.display = "flex";
+                } else {
+                    formTitleEl.innerText = "Form not found!";
+                }
+            } catch (error) {
+                console.error("Error loading form:", error);
+                formTitleEl.innerText = "Error loading form";
+            }
+        }
+
+        loadForm();
+
+        document.getElementById("clearBtn").addEventListener("click", () => {
+            dynamicForm.reset();
+        });
+
+        dynamicForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const answers = {};
+            let isValid = true;
+            let userIdentifier = "";
+
+            currentFormQuestions.forEach(q => {
+                if (q.type === "text") {
+                    const inputEl = document.querySelector(`input[data-qid="${q.id}"]`);
+                    const val = inputEl.value.trim();
+                    answers[q.text] = val;
+                    if (q.required && !val) isValid = false;
+
+                    // Check if this question asks for an email or phone number
+                    const qLower = q.text.toLowerCase();
+                    if ((qLower.includes("email") || qLower.includes("phone") || qLower.includes("number")) && val) {
+                        userIdentifier = val;
+                    }
+                } else if (q.type === "radio") {
+                    const selectedOpt = document.querySelector(`input[name="question_${q.id}"]:checked`);
+                    answers[q.text] = selectedOpt ? selectedOpt.value : "";
+                    if (q.required && !selectedOpt) isValid = false;
+                }
+            });
+
+            if (!isValid) {
+                alert("Please fill out all required fields.");
+                return;
+            }
+
+            try {
+                // Check if someone already submitted with this exact email/phone number for this form
+                if (userIdentifier) {
+                    const qCheck = query(collection(db, "submissions"), where("formId", "==", formId));
+                    const existingSubmissions = await getDocs(qCheck);
+                    
+                    let alreadySubmitted = false;
+                    existingSubmissions.forEach(docSnap => {
+                        const existingAnswers = docSnap.data().answers || {};
+                        for (const ansVal of Object.values(existingAnswers)) {
+                            if (typeof ansVal === 'string' && ansVal.toLowerCase() === userIdentifier.toLowerCase()) {
+                                alreadySubmitted = true;
+                            }
+                        }
+                    });
+
+                    if (alreadySubmitted) {
+                        alert("⚠️ You have already submitted a response using this email or phone number!");
+                        return;
+                    }
+                }
+
+                // Save submission if unique
+                await addDoc(collection(db, "submissions"), {
+                    formId: formId,
+                    answers: answers,
+                    submittedAt: new Date()
+                });
+
+                dynamicForm.style.display = "none";
+                successMsgEl.style.display = "block";
+            } catch (error) {
+                console.error("Error submitting response:", error);
+                alert("Error submitting your response. Try again!");
+            }
+        });
+    </script>
+</body>
+</html>
