@@ -30,6 +30,13 @@
         <div class="header-banner">📋 Mini Form Builder</div>
         
         <div class="form-content">
+            <label>Choose Form Template</label>
+            <select id="templateSelector">
+                <option value="">-- Start from scratch or pick a template --</option>
+                <option value="contact">Contact Form</option>
+                <option value="rsvp">Event RSVP</option>
+            </select>
+
             <label>Form Title</label>
             <input type="text" id="formTitle" placeholder="Untitled Form">
 
@@ -67,26 +74,46 @@
         const db = getFirestore(app);
         const questionsContainer = document.getElementById("questionsContainer");
 
-        function addQuestionField() {
+        const formTemplates = {
+            contact: {
+                title: "Contact Form",
+                questions: [
+                    { text: "FULL NAME", type: "text", required: true, options: [] },
+                    { text: "PHONE NUMBER", type: "text", required: true, options: [] },
+                    { text: "EMAIL ADDRESS", type: "text", required: true, options: [] }
+                ]
+            },
+            rsvp: {
+                title: "Event",
+                questions: [
+                    { text: "FULL NAME", type: "text", required: true, options: [] },
+                    { text: "WHATSAPP NUMBER", type: "text", required: true, options: [] },
+                    { text: "EMAIL ADDRESS", type: "text", required: true, options: [] },
+                    { text: "Current Status", type: "radio", required: false, options: ["Student", "Undergraduate", "Postgraduate", "Other"] }
+                ]
+            }
+        };
+
+        function addQuestionField(questionData = null) {
             const qBox = document.createElement("div");
             qBox.className = "question-box";
             qBox.innerHTML = `
                 <label>Question Text</label>
-                <input type="text" class="q-text" placeholder="Enter your question">
+                <input type="text" class="q-text" placeholder="Enter your question" value="${questionData ? questionData.text : ''}">
                 
                 <label>Question Type</label>
                 <select class="q-type">
-                    <option value="text">Short Answer</option>
-                    <option value="radio">Multiple Choice</option>
+                    <option value="text" ${questionData && questionData.type === 'text' ? 'selected' : ''}>Short Answer</option>
+                    <option value="radio" ${questionData && questionData.type === 'radio' ? 'selected' : ''}>Multiple Choice</option>
                 </select>
 
-                <div class="options-container" style="display: none;">
+                <div class="options-container" style="${questionData && questionData.type === 'radio' ? 'display: block;' : 'display: none;'}">
                     <label>Options (separated by commas)</label>
-                    <input type="text" class="q-options" placeholder="Option 1, Option 2, Option 3">
+                    <input type="text" class="q-options" placeholder="Option 1, Option 2, Option 3" value="${questionData && questionData.options ? questionData.options.join(', ') : ''}">
                 </div>
 
                 <label class="checkbox-label">
-                    <input type="checkbox" class="q-required" checked> Required question
+                    <input type="checkbox" class="q-required" ${questionData && questionData.required === false ? '' : 'checked'}> Required question
                 </label>
             `;
 
@@ -99,8 +126,20 @@
             questionsContainer.appendChild(qBox);
         }
 
+        document.getElementById("templateSelector").addEventListener("change", (e) => {
+            const templateKey = e.target.value;
+            if (!templateKey) return;
+
+            const template = formTemplates[templateKey];
+            if (template) {
+                document.getElementById("formTitle").value = template.title;
+                questionsContainer.innerHTML = "";
+                template.questions.forEach(q => addQuestionField(q));
+            }
+        });
+
         addQuestionField();
-        document.getElementById("addQuestionBtn").addEventListener("click", addQuestionField);
+        document.getElementById("addQuestionBtn").addEventListener("click", () => addQuestionField());
 
         document.getElementById("publishBtn").addEventListener("click", async () => {
             const title = document.getElementById("formTitle").value || "Untitled Form";

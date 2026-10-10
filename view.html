@@ -37,6 +37,24 @@
         button { background: #673ab7; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 600; }
         button:hover { background: #5e35b1; }
         .btn-secondary { background: #f1f3f4; color: #3c4043; border: 1px solid #dadce0; }
+        
+        .custom-alert {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            font-weight: 500;
+            display: none;
+        }
+        body.dark .custom-alert {
+            background: #3c1f1f;
+            color: #ff8a80;
+            border: 1px solid #7f2222;
+        }
+
         #successMsg { display: none; color: #4caf50; font-weight: bold; margin-top: 20px; font-size: 18px; text-align: center; }
     </style>
 </head>
@@ -47,6 +65,7 @@
         
         <div class="form-content">
             <form id="dynamicForm">
+                <div id="customAlert" class="custom-alert"></div>
                 <div id="questionsList"></div>
                 <div class="actions-bar" id="formActions" style="display: none;">
                     <button type="submit">Submit Response</button>
@@ -81,8 +100,15 @@
         const formActionsEl = document.getElementById("formActions");
         const successMsgEl = document.getElementById("successMsg");
         const dynamicForm = document.getElementById("dynamicForm");
+        const customAlertEl = document.getElementById("customAlert");
 
         let currentFormQuestions = [];
+
+        function showAlert(message) {
+            customAlertEl.innerText = message;
+            customAlertEl.style.display = "block";
+            customAlertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
 
         async function loadForm() {
             if (!formId) {
@@ -133,10 +159,13 @@
 
         document.getElementById("clearBtn").addEventListener("click", () => {
             dynamicForm.reset();
+            customAlertEl.style.display = "none";
         });
 
         dynamicForm.addEventListener("submit", async (e) => {
             e.preventDefault();
+            customAlertEl.style.display = "none"; // Hide previous alerts
+
             const answers = {};
             let isValid = true;
             let userIdentifier = "";
@@ -148,7 +177,6 @@
                     answers[q.text] = val;
                     if (q.required && !val) isValid = false;
 
-                    // Check if this question asks for an email or phone number
                     const qLower = q.text.toLowerCase();
                     if ((qLower.includes("email") || qLower.includes("phone") || qLower.includes("number")) && val) {
                         userIdentifier = val;
@@ -161,12 +189,11 @@
             });
 
             if (!isValid) {
-                alert("Please fill out all required fields.");
+                showAlert("⚠️ Please fill out all required fields.");
                 return;
             }
 
             try {
-                // Check if someone already submitted with this exact email/phone number for this form
                 if (userIdentifier) {
                     const qCheck = query(collection(db, "submissions"), where("formId", "==", formId));
                     const existingSubmissions = await getDocs(qCheck);
@@ -182,12 +209,11 @@
                     });
 
                     if (alreadySubmitted) {
-                        alert("⚠️ You have already submitted a response using this email or phone number!");
+                        showAlert("⚠️ You have already submitted a response using this email or phone number!");
                         return;
                     }
                 }
 
-                // Save submission if unique
                 await addDoc(collection(db, "submissions"), {
                     formId: formId,
                     answers: answers,
@@ -198,7 +224,7 @@
                 successMsgEl.style.display = "block";
             } catch (error) {
                 console.error("Error submitting response:", error);
-                alert("Error submitting your response. Try again!");
+                showAlert("❌ Error submitting your response. Try again!");
             }
         });
     </script>

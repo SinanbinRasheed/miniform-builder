@@ -55,8 +55,15 @@
             try {
                 const formDocRef = doc(db, "forms", formId);
                 const formDocSnap = await getDoc(formDocRef);
+                
+                let questionOrder = [];
                 if (formDocSnap.exists()) {
-                    dashTitle.innerText = `Responses: ${formDocSnap.data().title}`;
+                    const formData = formDocSnap.data();
+                    dashTitle.innerText = `Responses: ${formData.title}`;
+                    // Extract question text in the order they were created
+                    if (formData.questions) {
+                        questionOrder = formData.questions.map(q => q.text);
+                    }
                 }
 
                 const q = query(collection(db, "submissions"), where("formId", "==", formId));
@@ -74,7 +81,16 @@
                     
                     html += `<div class="response-card">`;
                     if (data.answers) {
-                        for (const [question, answer] of Object.entries(data.answers)) {
+                        // Sort answers based on the original question creation order
+                        const sortedEntries = Object.entries(data.answers).sort(([qA], [qB]) => {
+                            let indexA = questionOrder.indexOf(qA);
+                            let indexB = questionOrder.indexOf(qB);
+                            if (indexA === -1) indexA = 999;
+                            if (indexB === -1) indexB = 999;
+                            return indexA - indexB;
+                        });
+
+                        for (const [question, answer] of sortedEntries) {
                             html += `<div class="answer-row"><strong>${question}:</strong> ${answer || '(No answer)'}</div>`;
                         }
                     }
