@@ -110,6 +110,17 @@
             customAlertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
+        // Helper validators
+        function isValidEmail(email) {
+            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return re.test(email);
+        }
+
+        function isValidPhone(phone) {
+            const cleaned = phone.replace(/\D/g, '');
+            return cleaned.length >= 10 && cleaned.length <= 15;
+        }
+
         async function loadForm() {
             if (!formId) {
                 formTitleEl.innerText = "Invalid Form Link";
@@ -168,7 +179,7 @@
 
             const answers = {};
             let isValid = true;
-            let userIdentifier = "";
+            let userIdentifiers = [];
 
             currentFormQuestions.forEach(q => {
                 if (q.type === "text") {
@@ -178,8 +189,25 @@
                     if (q.required && !val) isValid = false;
 
                     const qLower = q.text.toLowerCase();
-                    if ((qLower.includes("email") || qLower.includes("phone") || qLower.includes("number")) && val) {
-                        userIdentifier = val;
+                    
+                    // Email format validation
+                    if (qLower.includes("email") && val) {
+                        if (!isValidEmail(val)) {
+                            showAlert("⚠️ Please enter a valid email address (e.g., name@example.com)");
+                            isValid = false;
+                        } else {
+                            userIdentifiers.push(val.toLowerCase());
+                        }
+                    }
+                    
+                    // Phone/Number format validation
+                    if ((qLower.includes("phone") || qLower.includes("number")) && val) {
+                        if (!isValidPhone(val)) {
+                            showAlert("⚠️ Please enter a valid phone number (at least 10 digits)");
+                            isValid = false;
+                        } else {
+                            userIdentifiers.push(val.toLowerCase());
+                        }
                     }
                 } else if (q.type === "radio") {
                     const selectedOpt = document.querySelector(`input[name="question_${q.id}"]:checked`);
@@ -189,12 +217,11 @@
             });
 
             if (!isValid) {
-                showAlert("⚠️ Please fill out all required fields.");
                 return;
             }
 
             try {
-                if (userIdentifier) {
+                if (userIdentifiers.length > 0) {
                     const qCheck = query(collection(db, "submissions"), where("formId", "==", formId));
                     const existingSubmissions = await getDocs(qCheck);
                     
@@ -202,8 +229,11 @@
                     existingSubmissions.forEach(docSnap => {
                         const existingAnswers = docSnap.data().answers || {};
                         for (const ansVal of Object.values(existingAnswers)) {
-                            if (typeof ansVal === 'string' && ansVal.toLowerCase() === userIdentifier.toLowerCase()) {
-                                alreadySubmitted = true;
+                            if (typeof ansVal === 'string') {
+                                const cleanExistingVal = ansVal.trim().toLowerCase();
+                                if (userIdentifiers.includes(cleanExistingVal)) {
+                                    alreadySubmitted = true;
+                                }
                             }
                         }
                     });
